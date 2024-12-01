@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Keyboard Layout Fixer",
+  "version": "1.0",
+  "description": "Fixes text typed with wrong keyboard layout",
+  "permissions": [
+    "activeTab",
+    "clipboardWrite",
+    "clipboardRead"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
