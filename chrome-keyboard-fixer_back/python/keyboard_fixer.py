@@ -9,7 +9,7 @@ class KeyboardFixer:
         self.buffer = ""
         self.conversion_callback = None
         # Define hotkeys
-        self.CONVERT_HOTKEY = 'ctrl+alt'  # שינוי הטקסט בלחיצת Ctrl+Alt
+        self.CONVERT_HOTKEY = 'ctrl+alt'  # Convert text with Ctrl+Alt
 
     def set_conversion_callback(self, callback: Callable[[str, str], None]):
         """Set callback for when text is converted"""
