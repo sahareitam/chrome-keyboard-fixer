@@ -1,30 +1,39 @@
 import keyboard
+import pyperclip  # הוספנו את זה בתחילת הקובץ
 from language_detector import LanguageDetector
 from typing import Callable
 
+
 class KeyboardFixer:
     def __init__(self):
-        """Initialize the KeyboardFixer"""
         self.detector = LanguageDetector()
-        self.buffer = ""
+        self.current_text = ""
         self.conversion_callback = None
-        # Define hotkeys
-        self.CONVERT_HOTKEY = 'ctrl+alt'  # Convert text with Ctrl+Alt
 
     def set_conversion_callback(self, callback: Callable[[str, str], None]):
-        """Set callback for when text is converted"""
         self.conversion_callback = callback
 
-    def convert_text_buffer(self):
-        """Convert the current text buffer"""
-        if self.buffer:
-            converted_text, conversion_type = self.detector.convert_text(self.buffer)
-            if converted_text != self.buffer and self.conversion_callback:
-                self.conversion_callback(converted_text, conversion_type)
+    def on_hotkey(self):
+        try:
+            # Get text from clipboard
+            text = pyperclip.paste()
+            print(f"Received text: {text}")  # Debug print
+
+            if text:
+                converted_text, conversion_type = self.detector.convert_text(text)
+                print(f"Converted to: {converted_text}")  # Debug print
+
+                if converted_text != text and self.conversion_callback:
+                    pyperclip.copy(converted_text)
+                    self.conversion_callback(converted_text, conversion_type)
+        except Exception as e:
+            print(f"Error details: {str(e)}")
+            raise  # This will show us the full error trace
 
     def start(self):
         """Start listening for the hotkey"""
-        keyboard.add_hotkey(self.CONVERT_HOTKEY, self.convert_text_buffer)
+        keyboard.add_hotkey('ctrl+alt', self.on_hotkey)
+        print("KeyboardFixer started - Press Ctrl+Alt to convert selected text")
 
     def stop(self):
         """Stop listening and clear resources"""

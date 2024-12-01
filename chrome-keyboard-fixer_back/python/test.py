@@ -2,26 +2,23 @@ from keyboard_fixer import KeyboardFixer
 
 
 def on_text_converted(converted_text: str, conversion_type: str):
-    print("\nConverted text:")
-    print(f"Original text -> Converted text:")
-    print(f"{converted_text}")
-    print(f"Conversion type: {conversion_type}")
-    print("\nPress Ctrl+Alt to convert between layouts")
-    print("Press Ctrl+C to exit")
+    print("\nConverted text:", converted_text)
+    print("Conversion type:", conversion_type)
+    print("\nYou can continue typing... Press Ctrl+C to exit")
 
 
 def main():
+    print("Keyboard Layout Converter")
+    print("------------------------")
+    print("Instructions:")
+    print("1. Type text somewhere (e.g., Notepad)")
+    print("2. Copy the text (Ctrl+C)")
+    print("3. Press Ctrl+Alt to convert")
+    print("4. The converted text will be in your clipboard")
+    print("\nPress Ctrl+C in this window to exit")
+
     fixer = KeyboardFixer()
     fixer.set_conversion_callback(on_text_converted)
-
-    print("Keyboard Fixer Test")
-    print("------------------")
-    print("Press Ctrl+Alt to convert text between Hebrew and English layouts")
-    print("Example test cases to try:")
-    print("1. Hebrew in English: vhh nv eurv?")
-    print("2. English in Hebrew: יקללם ״םצלד")
-    print("\nPress Ctrl+C to exit")
-
     fixer.start()
 
     try:
