@@ -1,0 +1,55 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background square -->
+    <rect x="4" y="4" width="120" height="120" rx="15"
+          fill="#FFB74D" stroke="#FF9800" stroke-width="2"/>
+
+    <!-- Language switch arrows and letters -->
+    <g transform="translate(64,64)">
+        <!-- Right to left arrow -->
+        <path d="M-40 -20 L-10 -20 L-20 -30 M-10 -20 L-20 -10"
+              stroke="#000000" stroke-width="6" fill="none"/>
+
+        <!-- Left to right arrow -->
+        <path d="M40 20 L10 20 L20 30 M10 20 L20 10"
+              stroke="#000000" stroke-width="6" fill="none"/>
+
+        <!-- א (Hebrew) -->
+        <text x="-30" y="25"
+              font-family="Arial, sans-serif"
+              font-size="35"
+              fill="#000000"
+              text-anchor="middle">
+            א
+        </text>
+
+        <!-- A (English) -->
+        <text x="30" y="-15"
+              font-family="Arial, sans-serif"
+              font-size="35"
+              font-weight="bold"
+              fill="#000000"
+              text-anchor="middle">
+            A
+        </text>
+    </g>
+
+    <!-- Switcher text -->
+    <text x="64" y="110"
+          font-family="Arial, sans-serif"
+          font-size="16"
+          font-weight="bold"
+          fill="#000000"
+          text-anchor="middle">
+        Switcher
+    </text>
+
+    <!-- Full name -->
+    <text x="20" y="20"
+          font-family="Arial, sans-serif"
+          font-size="8"
+          font-weight="normal"
+          fill="#000000"
+          text-anchor="start">
+        Sahar Eitam
+    </text>
+</svg>
