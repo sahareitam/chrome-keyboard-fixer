@@ -1,4 +1,4 @@
-# chrome Keyboard Fixer
+# Chrome Keyboard Fixer
 
 A Chrome extension with a Python backend for fixing text typed with the wrong keyboard layout, specifically designed for Hebrew-English switching.
 
