@@ -9,6 +9,20 @@ function isEditableElement(element) {
     );
 }
 
+// Get input's default direction
+function getInputDefaultDirection(element) {
+    const dir = element.getAttribute('dir');
+    if (dir) return dir;
+
+    const style = window.getComputedStyle(element);
+    return style.direction;
+}
+
+// Check if text contains Hebrew characters
+function isHebrewText(text) {
+    return /[\u0590-\u05FF]/.test(text);
+}
+
 // Send text to the background script for API processing
 function processTextThroughBackground(text) {
     return new Promise((resolve, reject) => {
@@ -60,9 +74,23 @@ document.addEventListener('keydown', async function (e) {
             if (selection && selection.toString()) {
                 document.execCommand('insertText', false, convertedText);
             } else if (activeElement.isContentEditable) {
+                // For contentEditable elements (like chat interfaces)
                 activeElement.textContent = convertedText;
+
+                // Always position cursor at the end for chat interfaces
+                const range = document.createRange();
+                const sel = window.getSelection();
+                range.selectNodeContents(activeElement);
+                range.collapse(false); // Place cursor at the end
+                sel.removeAllRanges();
+                sel.addRange(range);
             } else {
+                // For regular input elements
                 activeElement.value = convertedText;
+
+                // Set cursor to the end for input elements
+                activeElement.selectionStart = convertedText.length;
+                activeElement.selectionEnd = convertedText.length;
             }
 
             console.log('Text converted successfully');
@@ -70,4 +98,4 @@ document.addEventListener('keydown', async function (e) {
             console.error('Error converting text:', error);
         }
     }
-});
+});git status

@@ -8,7 +8,7 @@
     "clipboardWrite"
   ],
   "host_permissions": [
-    "http://127.0.0.1:5000/*"
+    "https://external-server-api.ew.r.appspot.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -40,6 +40,6 @@
     }
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:5000"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://external-server-api.ew.r.appspot.com"
   }
 }

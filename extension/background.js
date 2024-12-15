@@ -7,7 +7,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'convertText') {
         // Fetch the converted text from the API
-        fetch('http://127.0.0.1:5000/convert', {
+        fetch('https://external-server-api.ew.r.appspot.com', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
