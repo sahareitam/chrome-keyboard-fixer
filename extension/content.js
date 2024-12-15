@@ -98,4 +98,4 @@ document.addEventListener('keydown', async function (e) {
             console.error('Error converting text:', error);
         }
     }
-});git status
+});
