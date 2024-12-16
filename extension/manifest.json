@@ -1,14 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "chrome keyboard fixer",
+  "name": "Hebrew Keyboard Layout Fixer",
   "version": "1.0",
-  "description": "Fixes text typed with wrong keyboard layout",
+  "description": "Fixes text typed with wrong keyboard layout in Hebrew",
   "permissions": [
     "activeTab",
-    "clipboardWrite"
+    "clipboardWrite",
+    "scripting",
+    "storage",
+    "tabs"
   ],
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
   "host_permissions": [
-    "https://external-server-api.ew.r.appspot.com/*"
+    "https://external-server-api.ew.r.appspot.com/*",
+    "https://www.google.co.il/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -25,13 +32,10 @@
     {
       "matches": [
         "http://*/*",
-        "https://*/*",
-        "http://*/*",
-        "https://*/*",
-        "*://*.google.com/*",
-        "*://*.youtube.com/*"
+        "https://*/*"
       ],
-      "js": [ "content.js" ]
+      "js": ["content.js"],
+      "run_at": "document_end"
     }
   ],
   "icons": {
@@ -44,9 +48,7 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
-  },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://external-server-api.ew.r.appspot.com"
+    },
+    "default_title": "Hebrew Keyboard Layout Fixer"
   }
 }

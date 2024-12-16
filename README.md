@@ -15,20 +15,27 @@ A Chrome extension with a Python backend for fixing text typed with the wrong ke
 
 ```
 chrome-keyboard-fixer/
+├── cloud-server/
+│   ├── .gcloudignore
+│   ├── app.py
+│   ├── app.yaml
+│   ├── keyboard_fixer.py
+│   ├── language_detector.py
+│   └── requirements.txt
 ├── extension/
 │   ├── icons/
-│   │   ├── icon.svg
+│   │   ├── icon128.png
 │   │   ├── icon16.png
 │   │   ├── icon48.png
-│   │   └── icon128.png
+│   │   └── keyboard-key-logo.svg
 │   ├── background.js
 │   ├── content.js
-│   └── manifest.json
-└── python/
-    ├── app.py
-    ├── keyboard_fixer.py
-    ├── language_detector.py
-    └── test.py
+│   ├── manifest.json
+│   ├── newtab.html
+│   └── redirect.js
+├── .gitignore
+├── README.md
+└── package-lock.json
 ```
 
 ## Installation
@@ -40,22 +47,32 @@ chrome-keyboard-fixer/
 3. Click "Load unpacked" and select the `extension` folder
 4. The extension icon should appear in your Chrome toolbar
 
-### Python Backend
+### Cloud Server on GCP
+
+1. Ensure you have the Google Cloud SDK installed and configured
+2. Deploy the server to GCP using the following commands:
+```bash
+cd cloud-server
+gcloud app deploy app.yaml
+```
+3. Verify the server is running at the deployed URL
+
+### Local Python Backend (Optional)
 
 1. Ensure Python 3.7+ is installed
 2. Install required packages:
 ```bash
-cd python
-pip install flask flask-cors keyboard pyperclip
+cd cloud-server
+pip install -r requirements.txt
 ```
-3. Start the server:
+3. Start the server locally:
 ```bash
 python app.py
 ```
 
 ## Usage
 
-1. Make sure the server is running
+1. Ensure the server is running (GCP or locally)
 2. Type text in any input field on any website
 3. If you realize you typed with the wrong keyboard layout, press Ctrl+Shift+Z
 4. The text will automatically be converted to the correct layout
@@ -65,15 +82,19 @@ python app.py
 ### Chrome Extension
 
 - **manifest.json**: Extension permissions and configuration
-- **background.js**: Handles communication with Python backend
+- **background.js**: Handles communication with the backend server
 - **content.js**: Manages text selection and conversion in web pages
+- **newtab.html**: Custom New Tab page with redirection logic
+- **redirect.js**: Redirects the New Tab to Google
 
-### Python Backend
+### Cloud Server (GCP)
 
 - **app.py**: Flask server providing the conversion API
-- **language_detector.py**: Core logic for language detection and conversion
-- **keyboard_fixer.py**: Handles system-wide keyboard shortcuts
-- **test.py**: Test script for conversion functionality
+- **app.yaml**: Configuration file for GCP deployment
+- **keyboard_fixer.py**: Handles keyboard layout conversion logic
+- **language_detector.py**: Core logic for language detection
+- **requirements.txt**: List of dependencies
+- **.gcloudignore**: Files excluded during deployment
 
 ## API Endpoint
 
@@ -99,6 +120,7 @@ Response:
 
 - Python 3.7+
 - Chrome browser
+- Google Cloud SDK (for deployment)
 - Required Python packages:
   - flask
   - flask-cors
@@ -108,11 +130,11 @@ Response:
 ## Troubleshooting
 
 1. **Extension not converting text**
-   - Ensure the server is running
+   - Ensure the server is running or connected to the remote GCP backend
    - Check Chrome console for error messages
    - Verify the keyboard shortcut isn't conflicting with other extensions
 
 2. **Server connection issues**
-   - Confirm the server is running on port 5000
+   - Confirm the server is accessible on GCP
    - Check if antivirus/firewall is blocking the connection
    - Verify host permissions in manifest.json
