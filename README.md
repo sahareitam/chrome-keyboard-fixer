@@ -1,4 +1,5 @@
-# Keyboard Layout Fixer
+# KeyFixer – Switch Hebrew ↔ English Keyboard Layout
+
 
 A Chrome extension with a Python backend for fixing text typed with the wrong keyboard layout, specifically designed for Hebrew-English switching.
 

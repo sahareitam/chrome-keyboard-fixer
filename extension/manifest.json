@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Hebrew Keyboard Layout Fixer",
+  "name": "KeyFixer – Switch Hebrew ↔ English Keyboard Layout",
   "version": "1.0",
-  "description": "Fixes text typed with wrong keyboard layout in Hebrew",
+  "description": "Fixes text typed with the wrong keyboard layout – from Hebrew to English and vice versa.",
   "permissions": [
     "activeTab",
     "clipboardWrite",
@@ -34,7 +34,7 @@
         "http://*/*",
         "https://*/*"
       ],
-      "js": ["content.js"],
+      "js": [ "content.js" ],
       "run_at": "document_end"
     }
   ],
