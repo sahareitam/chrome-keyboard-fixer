@@ -4,11 +4,7 @@
   "version": "1.0",
   "description": "Fixes text typed with the wrong keyboard layout – from Hebrew to English and vice versa.",
   "permissions": [
-    "activeTab",
-    "clipboardWrite",
-    "scripting",
-    "storage",
-    "tabs"
+    "activeTab"
   ],
   "chrome_url_overrides": {
     "newtab": "newtab.html"
