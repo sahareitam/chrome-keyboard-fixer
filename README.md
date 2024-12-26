@@ -1,6 +1,5 @@
 # KeyFixer – Switch Hebrew ↔ English Keyboard Layout
 
-
 A Chrome extension with a Python backend for fixing text typed with the wrong keyboard layout, specifically designed for Hebrew-English switching.
 
 ## Key Features
@@ -8,8 +7,10 @@ A Chrome extension with a Python backend for fixing text typed with the wrong ke
 - Instant conversion of text typed in the wrong keyboard layout
 - Support for bidirectional Hebrew-English conversion
 - Works in any text input field on any website
-- Simple keyboard shortcut (Ctrl+Shift+Z) to trigger conversion
+- Simple keyboard shortcut (Alt+Shift+Z) to trigger conversion
+- Multiple consecutive conversions support
 - Smart handling of mixed language text
+- Intelligent cursor position tracking and text segment conversion
 - Preserves cursor position based on text direction (RTL/LTR)
 
 ## Project Structure
@@ -75,7 +76,13 @@ python app.py
 
 1. Ensure the server is running (GCP or locally)
 2. Type text in any input field on any website
-3. If you realize you typed with the wrong keyboard layout, press Ctrl+Shift+Z
+3. If you realize you typed with the wrong keyboard layout:
+   - Place your cursor at the desired position
+   - Press Alt+Shift+Z to mark the starting position
+   - Move your cursor to select the text segment
+   - Press Alt+Shift+Z again to convert the selected text
+   - You can continue pressing Alt+Shift+Z to perform multiple conversions
+   - The extension intelligently tracks cursor positions for continuous conversions
 4. The text will automatically be converted to the correct layout
 
 ## System Components
@@ -84,7 +91,7 @@ python app.py
 
 - **manifest.json**: Extension permissions and configuration
 - **background.js**: Handles communication with the backend server
-- **content.js**: Manages text selection and conversion in web pages
+- **content.js**: Manages text selection, cursor tracking, and conversion in web pages
 - **newtab.html**: Custom New Tab page with redirection logic
 - **redirect.js**: Redirects the New Tab to Google
 
@@ -134,8 +141,13 @@ Response:
    - Ensure the server is running or connected to the remote GCP backend
    - Check Chrome console for error messages
    - Verify the keyboard shortcut isn't conflicting with other extensions
+   - Make sure you're following the correct sequence for multiple conversions
 
 2. **Server connection issues**
    - Confirm the server is accessible on GCP
    - Check if antivirus/firewall is blocking the connection
    - Verify host permissions in manifest.json
+
+3. **Cursor position issues**
+   - If cursor position seems incorrect after conversion, try marking a new starting position
+   - For multiple conversions, ensure you're waiting for each conversion to complete
