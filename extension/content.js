@@ -136,7 +136,7 @@ async function handleKeydown(e) {
         return;
     }
 
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z') {
+    if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
 
         if (!isEditableElement(element)) {
