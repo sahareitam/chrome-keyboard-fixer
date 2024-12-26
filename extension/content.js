@@ -136,7 +136,12 @@ async function handleKeydown(e) {
         return;
     }
 
-    if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'z') {
+    // Check for Windows/Linux (Ctrl+Shift+Z) or Mac (Command+Shift+Z)
+    const isMac = navigator.platform.toLowerCase().includes('mac');
+    const isShortcutTriggered = e.shiftKey && e.key.toLowerCase() === 'z' &&
+        ((isMac && e.metaKey) || (!isMac && e.ctrlKey));
+
+    if (isShortcutTriggered) {
         e.preventDefault();
 
         if (!isEditableElement(element)) {

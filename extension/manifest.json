@@ -4,14 +4,18 @@
   "version": "1.0",
   "description": "Fixes text typed with the wrong keyboard layout – from Hebrew to English and vice versa.",
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "storage",
+    "scripting"
   ],
   "chrome_url_overrides": {
     "newtab": "newtab.html"
   },
   "host_permissions": [
     "https://external-server-api.ew.r.appspot.com/*",
-    "https://www.google.co.il/*"
+    "https://www.google.co.il/*",
+    "https://*/*",
+    "http://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -19,7 +23,8 @@
   "commands": {
     "convert_text": {
       "suggested_key": {
-        "default": "Ctrl+Shift+Z"
+        "default": "Ctrl+Shift+Z",
+        "mac": "Command+Shift+Z"
       },
       "description": "Convert selected text"
     }
@@ -31,7 +36,8 @@
         "https://*/*"
       ],
       "js": [ "content.js" ],
-      "run_at": "document_end"
+      "run_at": "document_end",
+      "all_frames": true
     }
   ],
   "icons": {

@@ -7,7 +7,7 @@ A Chrome extension with a Python backend for fixing text typed with the wrong ke
 - Instant conversion of text typed in the wrong keyboard layout
 - Support for bidirectional Hebrew-English conversion
 - Works in any text input field on any website
-- Simple keyboard shortcut (Alt+Shift+Z) to trigger conversion
+- Simple keyboard shortcut (Ctrl+Shift+Z on Windows/Linux, Command+Shift+Z on Mac) to trigger conversion
 - Multiple consecutive conversions support
 - Smart handling of mixed language text
 - Intelligent cursor position tracking and text segment conversion
@@ -78,10 +78,10 @@ python app.py
 2. Type text in any input field on any website
 3. If you realize you typed with the wrong keyboard layout:
    - Place your cursor at the desired position
-   - Press Alt+Shift+Z to mark the starting position
+   - Press Ctrl+Shift+Z (Windows/Linux) or Command+Shift+Z (Mac) to mark the starting position
    - Move your cursor to select the text segment
-   - Press Alt+Shift+Z again to convert the selected text
-   - You can continue pressing Alt+Shift+Z to perform multiple conversions
+   - Press the shortcut again to convert the selected text
+   - You can continue pressing the shortcut to perform multiple conversions
    - The extension intelligently tracks cursor positions for continuous conversions
 4. The text will automatically be converted to the correct layout
 
