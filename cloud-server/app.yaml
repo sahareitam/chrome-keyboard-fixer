@@ -7,11 +7,16 @@ automatic_scaling:
   target_cpu_utilization: 0.65
   min_instances: 1
   max_instances: 10
+  max_concurrent_requests: 40
 
 env_variables:
-  PYTHONUNBUFFERED: "true"
+  MAX_CONCURRENT_CALLS: "40"
 
 handlers:
+  - url: /health
+    script: auto
+    secure: always
+
   - url: /.*
     script: auto
     secure: always
