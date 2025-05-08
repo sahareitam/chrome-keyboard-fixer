@@ -4,6 +4,7 @@ langchain_vertex_analyzer.py - Module for analyzing text using LangChain with Ve
 
 import os
 import logging
+import time
 from typing import Dict, Any
 
 # Google Cloud imports
@@ -28,24 +29,60 @@ class LangChainTextAnalyzer:
         Initialize the analyzer with LangChain and Vertex AI.
         """
         try:
-            # Set project configuration
-            project_id = "external-server-api"
-            location = "us-central1"
-            model_name = "gemini-2.0-flash"
+            # Set project configuration from environment variables with fallbacks
+            project_id = os.getenv("PROJECT_ID", "external-server-api")
+            location = os.getenv("REGION", "us-central1")
+            model_name = os.getenv("MODEL_NAME", "gemini-2.0-flash")
 
-            # Set credentials path if exists
-            credentials_path = os.path.join(os.path.dirname(__file__),
-                                            "external-server-api-e694880b1376.json")
-            if os.path.exists(credentials_path):
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
-                logger.info(f"Using credentials from: {credentials_path}")
-            # Initialize Vertex AI
-            vertexai.init(project=project_id, location=location)
-            logger.info(f"Initialized Vertex AI with project: {project_id}, location: {location}")
+            # Detect if running in GCP environment
+            is_gcp_environment = os.getenv("GAE_ENV", "").startswith("standard") or \
+                               os.getenv("K_SERVICE", "") or \
+                               os.getenv("FUNCTION_NAME", "")
 
-            # Initialize LangChain's Vertex AI model
-            self.llm = VertexAI(model_name="gemini-2.0-flash")
-            logger.info(f"Created LangChain VertexAI model: {model_name}")
+            logger.info(f"Environment detection: Running in {'GCP' if is_gcp_environment else 'local'} environment")
+
+            # Credentials handling based on environment
+            if is_gcp_environment:
+                # In GCP, the service will use the attached service account automatically
+                logger.info("Using default GCP credentials")
+            else:
+                # Local development - use explicit credentials file
+                credentials_path = os.path.join(os.path.dirname(__file__),
+                                           "external-server-api-e694880b1376.json")
+                if os.path.exists(credentials_path):
+                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+                    logger.info(f"Using credentials from: {credentials_path}")
+                else:
+                    logger.warning(f"Credentials file not found at: {credentials_path}")
+                    # If credentials file is missing, check if credentials are set in environment
+                    if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
+                        logger.info("Using credentials from environment variable")
+                    else:
+                        logger.warning("No credentials found - service may fail")
+
+            # Initialize Vertex AI with proper error handling
+            try:
+                vertexai.init(project=project_id, location=location)
+                logger.info(f"Initialized Vertex AI with project: {project_id}, location: {location}")
+            except Exception as vertex_init_error:
+                logger.error(f"Failed to initialize Vertex AI: {str(vertex_init_error)}")
+                raise
+
+            # Initialize LangChain's Vertex AI model with retries
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    self.llm = VertexAI(model_name=model_name)
+                    logger.info(f"Created LangChain VertexAI model: {model_name}")
+                    break
+                except Exception as model_init_error:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Failed to initialize Vertex AI model after {max_retries} attempts: {str(model_init_error)}")
+                        raise
+                    logger.warning(f"Retry {retry_count}/{max_retries} initializing model: {str(model_init_error)}")
+                    time.sleep(1)  # Short delay before retry
 
             # Initialize the language detector for keyboard layout conversion
             self.detector = LanguageDetector()
@@ -88,13 +125,7 @@ class LangChainTextAnalyzer:
 
     def analyze_and_correct_text(self, text: str) -> Dict[str, Any]:
         """
-        Complete text analysis and correction pipeline.
-
-        Args:
-            text: The text to analyze and correct
-
-        Returns:
-            A dictionary with the corrected text and analysis results
+        Complete text analysis and correction pipeline with improved error handling for GCP.
         """
         if not text:
             logger.warning("Empty text provided for analysis")
@@ -108,28 +139,47 @@ class LangChainTextAnalyzer:
             converted_text = self.detector.convert_last_language(text)
             logger.debug(f"Original text: '{text}', Converted text: '{converted_text}'")
 
-            # Step 2: Use LangChain to analyze and correct the text
-            logger.info("Sending texts to Vertex AI for analysis")
-            response = self.chain.invoke(input={
-                "original_text": text,
-                "converted_text": converted_text
-            })
+            # Step 2: Use LangChain with retry logic for API calls
+            max_retries = 3
+            retry_count = 0
+            response_text = None
 
-            response_text = response
-            logger.debug(f"Raw response from Vertex AI: {response_text}")
+            while retry_count < max_retries:
+                try:
+                    logger.info(f"Attempt {retry_count+1}/{max_retries}: Sending texts to Vertex AI for analysis")
 
-            if "CORRECTED:" in response_text:
+                    # Add timeout handling for GCP environment
+                    response = self.chain.invoke(input={
+                        "original_text": text,
+                        "converted_text": converted_text
+                    })
+
+                    response_text = response
+                    logger.debug(f"Raw response from Vertex AI: {response_text}")
+                    break  # Success - exit retry loop
+
+                except Exception as api_error:
+                    retry_count += 1
+                    logger.warning(f"API call failed (attempt {retry_count}/{max_retries}): {str(api_error)}")
+
+                    if retry_count >= max_retries:
+                        logger.error(f"All retries failed for Vertex AI analysis")
+                        # Fallback to original text after all retries fail
+                        return {
+                            "corrected_text": text,
+                            "reasoning": f"API error after {max_retries} attempts: {str(api_error)}"
+                        }
+
+                    # Exponential backoff before retry
+                    time.sleep(2 ** retry_count)  # 2, 4, 8 seconds
+
+            # Process the response if we got one
+            if response_text and "CORRECTED:" in response_text:
                 corrected_start = response_text.find("CORRECTED:") + len("CORRECTED:")
                 corrected_text = response_text[corrected_start:].strip()
             else:
                 # Fallback to original text if no correction found
                 corrected_text = text
-
-            # def is_hebrew(text):
-            #     return any('\u0590' <= c <= '\u05FF' for c in text)
-            #
-            # if is_hebrew(corrected_text):
-            #     corrected_text = corrected_text[::-1]
 
             return {
                 "corrected_text": corrected_text,
@@ -145,13 +195,7 @@ class LangChainTextAnalyzer:
 
     def translate_with_vertex(self, text: str) -> str:
         """
-        Translate text between Hebrew and English using Vertex AI
-
-        Args:
-            text: The text to translate
-
-        Returns:
-            The translated text
+        Translate text between Hebrew and English using Vertex AI with improved error handling for GCP.
         """
         if not text:
             logger.warning("Empty text provided for translation")
@@ -198,15 +242,34 @@ class LangChainTextAnalyzer:
             Provide only the translated text, with no additional text or explanations.
             """
 
-            # Send the prompt directly to the LLM
-            logger.info(f"Sending text to Vertex AI for translation from {source_language} to {target_language}")
-            response = self.llm.invoke(translation_prompt)
+            # Add retry logic for GCP environment
+            max_retries = 3
+            retry_count = 0
+            translated_text = None
 
-            # Clean up the response
-            translated_text = response.strip()
-            logger.debug(f"Original text: '{text}', Translated text: '{translated_text}'")
+            while retry_count < max_retries:
+                try:
+                    logger.info(f"Attempt {retry_count+1}/{max_retries}: Sending text to Vertex AI for translation")
+                    response = self.llm.invoke(translation_prompt)
 
-            return translated_text
+                    # Clean up the response
+                    translated_text = response.strip()
+                    logger.debug(f"Original text: '{text}', Translated text: '{translated_text}'")
+                    break  # Success - exit retry loop
+
+                except Exception as api_error:
+                    retry_count += 1
+                    logger.warning(f"Translation API call failed (attempt {retry_count}/{max_retries}): {str(api_error)}")
+
+                    if retry_count >= max_retries:
+                        logger.error(f"All retries failed for translation")
+                        # Return original text if all retries fail
+                        return text
+
+                    # Exponential backoff
+                    time.sleep(2 ** retry_count)
+
+            return translated_text if translated_text else text
 
         except Exception as e:
             logger.error(f"Error in text translation: {str(e)}")
@@ -216,19 +279,31 @@ class LangChainTextAnalyzer:
     def is_available(self) -> bool:
         """
         Check if the LangChain with Vertex AI is available and working.
-
-        Returns:
-            True if the API is available, False otherwise
+        Enhanced for GCP environment with retries.
         """
-        try:
-            logger.info("Testing Vertex AI availability")
-            test_response = self.llm.invoke("Hello, are you available? Please respond with 'yes' only.")
-            is_available = "yes" in test_response.lower()
-            logger.info(f"Vertex AI availability test result: {is_available}")
-            return is_available
-        except Exception as e:
-            logger.error(f"Vertex AI not available: {str(e)}")
-            return False
+        max_retries = 2
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                logger.info(f"Attempt {retry_count+1}/{max_retries}: Testing Vertex AI availability")
+                test_response = self.llm.invoke("Hello, are you available? Please respond with 'yes' only.")
+                is_available = "yes" in test_response.lower()
+                logger.info(f"Vertex AI availability test result: {is_available}")
+                return is_available
+
+            except Exception as e:
+                retry_count += 1
+                logger.warning(f"Availability check failed (attempt {retry_count}/{max_retries}): {str(e)}")
+
+                if retry_count >= max_retries:
+                    logger.error(f"All availability check retries failed: {str(e)}")
+                    return False
+
+                # Short delay before retry
+                time.sleep(2)
+
+        return False  # Ensure we always return a boolean
 
 
 # For testing outside of the web server
@@ -242,8 +317,11 @@ if __name__ == "__main__":
     # Test with a Hebrew text typed with English keyboard
     test_text = "יןן ים' רק טםו?"  # "שלום" typed with English keyboard
     result = analyzer.analyze_and_correct_text(test_text)
+    test_text2 = "היי מה קורה הכל בסדר?? איך אתה? רוצה ללכת איתי לים ?"
+    result2 = analyzer.translate_with_vertex(test_text2)
 
     print(f"Original text: {test_text}")
     print(f"Corrected text: {result['corrected_text']}")
+    print(f"Translated text: {result2}")
     if 'reasoning' in result:
         print(f"Reasoning: {result['reasoning']}")
