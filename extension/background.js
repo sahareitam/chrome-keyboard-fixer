@@ -2,8 +2,8 @@
 let activeRequests = 0;
 const MAX_CONCURRENT_REQUESTS = 3;
 const REQUEST_DELAY_MS = 500;
-const API_ENDPOINT = 'https://external-server-api.ew.r.appspot.com/api/convert';
-
+// const API_ENDPOINT = 'https://external-server-api.ew.r.appspot.com/api/convert';
+const API_ENDPOINT = 'http://127.0.0.1:5000/api/convert';
 // Simple request manager
 function sendRequest(text, sendResponse) {
     // Check if we can make a new request
