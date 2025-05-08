@@ -143,6 +143,76 @@ class LangChainTextAnalyzer:
                 "reasoning": f"Error during analysis: {str(e)}"
             }
 
+    def translate_with_vertex(self, text: str) -> str:
+        """
+        Translate text between Hebrew and English using Vertex AI
+
+        Args:
+            text: The text to translate
+
+        Returns:
+            The translated text
+        """
+        if not text:
+            logger.warning("Empty text provided for translation")
+            return text
+
+        try:
+            # Detect text language using existing detector
+            hebrew_chars = 0
+            english_chars = 0
+
+            for char in text:
+                lang = self.detector.detect_character_language(char)
+                if lang == "hebrew":
+                    hebrew_chars += 1
+                elif lang == "english":
+                    english_chars += 1
+
+            # Determine translation direction based on analysis
+            if hebrew_chars > english_chars:
+                target_language = "English"
+                source_language = "Hebrew"
+            else:
+                target_language = "Hebrew"
+                source_language = "English"
+
+            # Create a clear translation prompt
+            translation_prompt = f"""
+            ROLE: You are a strict, rule-based translation engine.
+
+            TASK: Translate the input text **verbatim** from {source_language} to {target_language}.
+
+            RESTRICTIONS:
+            1. DO NOT add any comments, explanations, or metadata.
+            2. DO NOT repeat or rephrase the input text.
+            3. DO NOT identify the language.
+            4. DO NOT include any labels, titles, or surrounding text.
+            5. DO NOT correct typos or grammar – just translate what is written.
+            6. DO NOT format the output in any way – plain text only.
+
+            OUTPUT: Only the translated text. No headers. No markdown. No quotes.
+
+            INPUT TEXT:
+            {text}
+            Provide only the translated text, with no additional text or explanations.
+            """
+
+            # Send the prompt directly to the LLM
+            logger.info(f"Sending text to Vertex AI for translation from {source_language} to {target_language}")
+            response = self.llm.invoke(translation_prompt)
+
+            # Clean up the response
+            translated_text = response.strip()
+            logger.debug(f"Original text: '{text}', Translated text: '{translated_text}'")
+
+            return translated_text
+
+        except Exception as e:
+            logger.error(f"Error in text translation: {str(e)}")
+            # Return the original text in case of error
+            return text
+
     def is_available(self) -> bool:
         """
         Check if the LangChain with Vertex AI is available and working.

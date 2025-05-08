@@ -22,6 +22,12 @@
         "default": "Ctrl+Shift+Z"
       },
       "description": "Convert selected text"
+    },
+    "translate_text": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+X"
+      },
+      "description": "Translate selected text"
     }
   },
   "content_scripts": [

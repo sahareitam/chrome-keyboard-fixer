@@ -100,6 +100,29 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     return response
 
+@app.route('/api/translate', methods=['POST'])
+@api_limiter.limit_api(max_calls_per_minute=30)
+def api_translate_text():
+    """
+    API endpoint for translating text between Hebrew and English
+    """
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
+
+        # Use the AI analyzer to translate text
+        if ai_analysis_available and text_analyzer:
+            result = text_analyzer.translate_with_vertex(text)
+            return jsonify({'translatedText': result})
+        else:
+            return jsonify({'error': 'AI text analysis is not available'}), 503
+
+    except Exception as e:
+        logging.error(f"Error in text translation: {str(e)}")
+        return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

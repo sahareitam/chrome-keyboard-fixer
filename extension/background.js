@@ -4,6 +4,8 @@ const MAX_CONCURRENT_REQUESTS = 3;
 const REQUEST_DELAY_MS = 500;
 // const API_ENDPOINT = 'https://external-server-api.ew.r.appspot.com/api/convert';
 const API_ENDPOINT = 'http://127.0.0.1:5000/api/convert';
+const TRANSLATION_ENDPOINT = 'http://127.0.0.1:5000/api/translate';
+
 // Simple request manager
 function sendRequest(text, sendResponse) {
     // Check if we can make a new request
@@ -56,11 +58,68 @@ function sendRequest(text, sendResponse) {
     });
 }
 
+
+// New function for translation requests
+function sendTranslationRequest(text, sendResponse) {
+    // Check if we can make a new request
+    if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
+        // If not, try again after delay
+        setTimeout(() => sendTranslationRequest(text, sendResponse), REQUEST_DELAY_MS);
+        return;
+    }
+
+    // Increment active requests counter
+    activeRequests++;
+
+    // Send the request to the server
+    fetch(TRANSLATION_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ text: text })
+    })
+    .then(response => {
+        if (!response.ok) {
+            if (response.status === 429) {
+                throw new Error('Rate limit exceeded');
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            console.error('API Error:', data.error);
+            sendResponse({ error: data.error });
+        } else {
+            sendResponse({ translatedText: data.translatedText });
+        }
+    })
+    .catch(error => {
+        console.error('Error communicating with API:', error);
+        sendResponse({
+            error: error.message === 'Rate limit exceeded'
+                ? 'Too many requests, please try again later'
+                : 'Failed to connect to the API'
+        });
+    })
+    .finally(() => {
+        // Decrement active requests counter
+        activeRequests--;
+    });
+}
+
 // Handle messages from content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'convertText') {
         // Process the conversion request
         sendRequest(request.text, sendResponse);
+        return true; // Keep message channel open for async response
+    } else if (request.action === 'translateText') {
+        // Process the translation request
+        sendTranslationRequest(request.text, sendResponse);
         return true; // Keep message channel open for async response
     }
 });
