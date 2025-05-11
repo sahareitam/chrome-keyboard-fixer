@@ -6,6 +6,8 @@ import os
 import logging
 import time
 from typing import Dict, Any
+from dotenv import load_dotenv
+load_dotenv()
 
 # Google Cloud imports
 import vertexai
@@ -30,7 +32,7 @@ class LangChainTextAnalyzer:
         """
         try:
             # Set project configuration from environment variables with fallbacks
-            project_id = os.getenv("PROJECT_ID", "external-server-api")
+            project_id = os.getenv("PROJECT_ID", "project-id-placeholder")
             location = os.getenv("REGION", "us-central1")
             model_name = os.getenv("MODEL_NAME", "gemini-2.0-flash")
 
@@ -47,23 +49,16 @@ class LangChainTextAnalyzer:
                 logger.info("Using default GCP credentials")
             else:
                 # Local development - use explicit credentials file
-                credentials_path = os.path.join(os.path.dirname(__file__),
-                                           "external-server-api-e694880b1376.json")
-                if os.path.exists(credentials_path):
-                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
-                    logger.info(f"Using credentials from: {credentials_path}")
+                credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                if credentials_path and os.path.exists(credentials_path):
+                    logger.info("Using credentials from environment variable")
                 else:
-                    logger.warning(f"Credentials file not found at: {credentials_path}")
-                    # If credentials file is missing, check if credentials are set in environment
-                    if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
-                        logger.info("Using credentials from environment variable")
-                    else:
-                        logger.warning("No credentials found - service may fail")
+                    logger.warning("No credentials found - service may fail")
 
             # Initialize Vertex AI with proper error handling
             try:
                 vertexai.init(project=project_id, location=location)
-                logger.info(f"Initialized Vertex AI with project: {project_id}, location: {location}")
+                logger.info(f"Initialized Vertex AI with project ID and location: {location}")
             except Exception as vertex_init_error:
                 logger.error(f"Failed to initialize Vertex AI: {str(vertex_init_error)}")
                 raise
@@ -137,7 +132,7 @@ class LangChainTextAnalyzer:
         try:
             # Step 1: Convert the text using the existing detector
             converted_text = self.detector.convert_last_language(text)
-            logger.debug(f"Original text: '{text}', Converted text: '{converted_text}'")
+            logger.debug("Text processing completed successfully")
 
             # Step 2: Use LangChain with retry logic for API calls
             max_retries = 3
@@ -239,7 +234,6 @@ class LangChainTextAnalyzer:
 
             INPUT TEXT:
             {text}
-            Provide only the translated text, with no additional text or explanations.
             """
 
             # Add retry logic for GCP environment
@@ -254,7 +248,6 @@ class LangChainTextAnalyzer:
 
                     # Clean up the response
                     translated_text = response.strip()
-                    logger.debug(f"Original text: '{text}', Translated text: '{translated_text}'")
                     break  # Success - exit retry loop
 
                 except Exception as api_error:

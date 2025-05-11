@@ -11,9 +11,10 @@ automatic_scaling:
 
 env_variables:
   MAX_CONCURRENT_CALLS: "40"
-  PROJECT_ID: "external-server-api"
-  REGION: "us-central1"
-  MODEL_NAME: "gemini-2.0-flash"
+#These keys should only be defined in the production environment
+  # PROJECT_ID: "project-id"
+  # REGION: "region"
+  # MODEL_NAME: "model-name"
 
 handlers:
   - url: /health
