@@ -198,6 +198,23 @@ function processTextThroughTranslation(text) {
     });
 }
 
+// Process text through rephrasing API
+function processTextThroughRephrasing(text) {
+    return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ action: 'rephraseToPrompt', text }, response => {
+            if (chrome.runtime.lastError) {
+                console.error('Error communicating with background:', chrome.runtime.lastError);
+                reject('Background communication error');
+            } else if (response.error) {
+                console.error('Error from API:', response.error);
+                reject('API error');
+            } else {
+                resolve(response.rephrasedText);
+            }
+        });
+    });
+}
+
 // Handle focus
 function handleFocus(e) {
     const element = e.target;
@@ -314,6 +331,72 @@ async function handleKeydown(e) {
             console.log('Text translated successfully');
         } catch (error) {
             console.error('Error translating text:', error);
+        }
+    }
+    // Handle Ctrl+Shift+y (rephrase to prompt)
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+
+        if (!isEditableElement(element)) {
+            console.log('No editable element selected');
+            return;
+        }
+
+        let textToRephrase = '';
+
+        // Get all text from the element
+        if (element.isContentEditable) {
+            textToRephrase = element.textContent;
+        } else {
+            textToRephrase = element.value;
+        }
+
+        if (!textToRephrase) {
+            console.log('No text to rephrase');
+            return;
+        }
+
+        console.log('Sending text for rephrasing to prompt:', textToRephrase);
+
+        try {
+            // Store original text in history
+            textHistory.element = element;
+            textHistory.originalText = textToRephrase;
+            textHistory.hasRecentConversion = true;
+            textHistory.timestamp = Date.now();
+
+            // Rephrase the text
+            const rephrasedText = await processTextThroughRephrasing(textToRephrase);
+
+            // Replace all text in the element
+            if (element.isContentEditable) {
+                element.textContent = rephrasedText;
+            } else {
+                element.value = rephrasedText;
+
+                // Trigger input and change events
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            // Position cursor at the end of the new text
+            if (element.isContentEditable) {
+                const range = document.createRange();
+                const sel = window.getSelection();
+                if (element.firstChild) {
+                    range.setStart(element.firstChild, rephrasedText.length);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            } else {
+                element.selectionStart = rephrasedText.length;
+                element.selectionEnd = rephrasedText.length;
+            }
+
+            console.log('Text rephrased to prompt successfully');
+        } catch (error) {
+            console.error('Error rephrasing text:', error);
         }
     }
 }

@@ -221,25 +221,24 @@ class LangChainTextAnalyzer:
                 target_language = "Hebrew"
                 source_language = "English"
 
-            # Create a clear translation prompt
             translation_prompt = f"""
             ROLE: You are a strict, rule-based translation engine.
 
-            TASK: Translate the input text **verbatim** from {source_language} to {target_language}.
+            TASK: Correct spelling, grammar and punctuation errors in the input text, then translate the corrected text from {source_language} to {target_language}.
 
             RESTRICTIONS:
-            1. DO NOT add any comments, explanations, or metadata.
-            2. DO NOT repeat or rephrase the input text.
+            1. DO NOT add comments, explanations or metadata.
+            2. DO NOT repeat the input text in its original language.
             3. DO NOT identify the language.
-            4. DO NOT include any labels, titles, or surrounding text.
-            5. DO NOT correct typos or grammar – just translate what is written.
-            6. DO NOT format the output in any way – plain text only.
+            4. DO NOT include labels, titles or surrounding text.
+            5. DO NOT expand, omit or alter content beyond minimal corrections.
+            6. Preserve meaning, tone and all original formatting (bold, italics, lists, inline code).
+            7. Output plain text only – no markdown, quotes or code fences.
 
-            OUTPUT: Only the translated text. No headers. No markdown. No quotes.
+            OUTPUT: The corrected and translated text only.
 
             INPUT TEXT:
             {text}
-            Provide only the translated text, with no additional text or explanations.
             """
 
             # Add retry logic for GCP environment
@@ -276,6 +275,61 @@ class LangChainTextAnalyzer:
             # Return the original text in case of error
             return text
 
+    def rephrase_to_prompt(self, text: str) -> str:
+        """
+        Rephrase text into a well-structured AI prompt
+
+        Args:
+            text: Original text to rephrase
+
+        Returns:
+            Rephrased text as a ready-to-use prompt
+        """
+        if not text:
+            logger.warning("Empty text provided for rephrasing")
+            return text
+
+        try:
+            # Create rephrasing prompt
+            rephrasing_prompt = f"""
+            You are “PromptRefiner”, a senior cross-LLM prompt engineer.
+            USER INPUT (original prompt to improve):
+
+            \"\"\"{text}\"\"\" 
+            
+
+            OBJECTIVE:
+            Rewrite the user input so that GPT-4-class or Claude-3-class models produce the most accurate, complete, and context-aware answer.
+
+            INSTRUCTIONS
+            Keep the rewritten prompt in the exact same language used in the original text.
+            
+            1. Preserve the original intent, but clarify goals, desired depth, and target audience.
+            2. Add any missing context or constraints that help the target model:  
+               - tone, answer format, length limit, domain perspective, examples, step-by-step reasoning, citation style, verification requests.
+            3. Eliminate ambiguity, filler, and duplicate ideas; keep language formal and professional unless instructed otherwise.
+            4. Do not mention these guidelines, your role, or any meta-text in the final result.
+            5. Output only the improved prompt, plain text, no labels, no commentary, no code fencing.
+            
+            
+            END OF INSTRUCTIONS
+            """
+
+            # Send prompt to Vertex AI
+            logger.info("Sending text to Vertex AI for rephrasing to prompt")
+            response = self.llm.invoke(rephrasing_prompt)
+
+            # Clean response
+            rephrased_text = response.strip()
+            logger.debug(f"Original text: '{text}', Rephrased prompt: '{rephrased_text}'")
+
+            return rephrased_text
+
+        except Exception as e:
+            logger.error(f"Error in text rephrasing: {str(e)}")
+            # In case of error, return original text
+            return text
+
     def is_available(self) -> bool:
         """
         Check if the LangChain with Vertex AI is available and working.
@@ -306,6 +360,8 @@ class LangChainTextAnalyzer:
         return False  # Ensure we always return a boolean
 
 
+
+
 # For testing outside of the web server
 if __name__ == "__main__":
     # Set up logging for direct execution
@@ -319,9 +375,13 @@ if __name__ == "__main__":
     result = analyzer.analyze_and_correct_text(test_text)
     test_text2 = "היי מה קורה הכל בסדר?? איך אתה? רוצה ללכת איתי לים ?"
     result2 = analyzer.translate_with_vertex(test_text2)
+    test_text3 = "יש לי מבחן בתקשורת נתונים אשמח שתסביר לי איך אני צריך להתכונן אליו"
+    result3 = analyzer.rephrase_to_prompt(test_text3)
 
     print(f"Original text: {test_text}")
     print(f"Corrected text: {result['corrected_text']}")
     print(f"Translated text: {result2}")
+    print(f"prompt text: {result3}")
+
     if 'reasoning' in result:
         print(f"Reasoning: {result['reasoning']}")
