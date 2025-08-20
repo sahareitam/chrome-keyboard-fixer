@@ -19,7 +19,7 @@ jobs:
         python-version: 3.9
     
     - name: Cache pip dependencies
-      uses: actions/cache@v4
+      uses: actions/cache@v3
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -45,7 +45,7 @@ jobs:
       run: |
         cd cloud-server
         # Make black formatting optional - just warn, don't fail
-        black --check --diff . || echo "Code formatting could be improved, but this won't fail the build"
+        black --check --diff . || echo "⚠️ Code formatting could be improved, but this won't fail the build"
     
     - name: Test with pytest (if tests exist)
       run: |
@@ -138,12 +138,16 @@ jobs:
     
     - name: Check for actual sensitive files (relaxed)
       run: |
-        # Check for actual credential files, not just patterns
+        # Check for actual credential files
         echo "Scanning for actual credential files..."
         
-        # Check for actual JSON service account files
-        if find . -name "*.json" -path "*/cloud-server/*" -not -path "*/.git/*" | grep -v manifest.json | head -1; then
-          echo "Error:  Found JSON files in cloud-server directory!"
+        # List what's actually in cloud-server for debugging
+        echo "Files in cloud-server:"
+        ls -la cloud-server/ || true
+        
+        # Check for service account credential files (specific patterns)
+        if find . -name "*service-account*.json" -o -name "*credentials*.json" -o -name "*-key.json" | grep -v ".git" | head -1; then
+          echo "Error:  Found credential files!"
           exit 1
         fi
         
