@@ -124,5 +124,29 @@ def api_translate_text():
         logging.error(f"Error in text translation: {str(e)}")
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
+@app.route('/api/rephrase_to_prompt', methods=['POST'])
+@api_limiter.limit_api(max_calls_per_minute=30)
+def api_rephrase_to_prompt():
+    """
+    API endpoint for rephrasing text into a ready-to-use prompt
+    """
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
+
+        # Use AI analyzer for rephrasing
+        if ai_analysis_available and text_analyzer:
+            result = text_analyzer.rephrase_to_prompt(text)
+            return jsonify({'rephrasedText': result})
+        else:
+            return jsonify({'error': 'AI text analysis is not available'}), 503
+
+    except Exception as e:
+        logging.error(f"Error in text rephrasing: {str(e)}")
+        return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)
