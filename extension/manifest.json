@@ -10,8 +10,10 @@
     "newtab": "newtab.html"
   },
   "host_permissions": [
-    "https://external-server-api.ew.r.appspot.com/*",
-    "https://www.google.co.il/*"
+  "https://external-server-api.ew.r.appspot.com/*",
+  "https://www.google.co.il/*",
+  "http://localhost:8080/*",
+  "http://127.0.0.1:8080/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -28,6 +30,12 @@
         "default": "Ctrl+Shift+X"
       },
       "description": "Translate selected text"
+    },
+    "rephrase_to_prompt": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+H"
+      },
+      "description": "Rephrase text to AI prompt"
     }
   },
   "content_scripts": [

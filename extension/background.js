@@ -2,9 +2,13 @@
 let activeRequests = 0;
 const MAX_CONCURRENT_REQUESTS = 3;
 const REQUEST_DELAY_MS = 500;
-const API_ENDPOINT = 'https://your-api-endpoint.example.com/api/convert';
-const TRANSLATION_ENDPOINT = 'https://your-api-endpoint.example.com/api/translate';
+// const API_ENDPOINT = 'http://localhost:8080/api/convert';
+// const TRANSLATION_ENDPOINT = 'http://localhost:8080/api/translate';
+// const REPHRASE_ENDPOINT = 'http://localhost:8080/api/rephrase_to_prompt';
 
+const API_ENDPOINT = 'https://external-server-api.ew.r.appspot.com/api/convert';
+const TRANSLATION_ENDPOINT = 'https://external-server-api.ew.r.appspot.com/api/translate';
+const REPHRASE_ENDPOINT = 'https://external-server-api.ew.r.appspot.com/api/rephrase_to_prompt';
 // Simple request manager
 function sendRequest(text, sendResponse) {
     // Check if we can make a new request
@@ -18,15 +22,16 @@ function sendRequest(text, sendResponse) {
     activeRequests++;
 
     // Send the request to the server
-    fetch(API_ENDPOINT, {
+   fetch(API_ENDPOINT, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         },
         body: JSON.stringify({ text: text })
-    })
+   })
     .then(response => {
+        console.log('Response status:', response.status);
         if (!response.ok) {
             if (response.status === 429) {
                 throw new Error('Rate limit exceeded');
@@ -36,6 +41,8 @@ function sendRequest(text, sendResponse) {
         return response.json();
     })
     .then(data => {
+        console.log('API response data:', data);
+
         if (data.error) {
             console.error('API Error:', data.error);
             sendResponse({ error: data.error });
@@ -110,6 +117,52 @@ function sendTranslationRequest(text, sendResponse) {
     });
 }
 
+function sendRephraseRequest(text, sendResponse) {
+    // Check if we can make a new request
+    if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
+        setTimeout(() => sendRephraseRequest(text, sendResponse), REQUEST_DELAY_MS);
+        return;
+    }
+
+    activeRequests++;
+
+    fetch(REPHRASE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ text: text })
+    })
+    .then(response => {
+        if (!response.ok) {
+            if (response.status === 429) {
+                throw new Error('Rate limit exceeded');
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            console.error('API Error:', data.error);
+            sendResponse({ error: data.error });
+        } else {
+            sendResponse({ rephrasedText: data.rephrasedText });
+        }
+    })
+    .catch(error => {
+        console.error('Error communicating with API:', error);
+        sendResponse({
+            error: error.message === 'Rate limit exceeded'
+                ? 'Too many requests, please try again later'
+                : 'Failed to connect to the API'
+        });
+    })
+    .finally(() => {
+        activeRequests--;
+    });
+}
 // Handle messages from content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'convertText') {
@@ -120,6 +173,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Process the translation request
         sendTranslationRequest(request.text, sendResponse);
         return true; // Keep message channel open for async response
+    } else if (request.action === 'rephraseToPrompt') {
+        sendRephraseRequest(request.text, sendResponse);
+        return true;
     }
 });
 
