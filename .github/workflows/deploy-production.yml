@@ -127,7 +127,7 @@ jobs:
     - name: Smoke test new version
       run: |
         NEW_VERSION="${{ steps.deploy.outputs.new_version }}"
-        NEW_URL="https://${NEW_VERSION}-dot-${{ secrets.GCP_PROJECT_ID_PRODUCTION }}.appspot.com"
+        NEW_URL="https://${NEW_VERSION}-dot-${{ secrets.PROJECT_ID }}.appspot.com"
         
         echo "Running smoke tests on: $NEW_URL"
         
