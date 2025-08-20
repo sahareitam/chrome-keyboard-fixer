@@ -1,0 +1,196 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      confirm_production:
+        description: 'Type "DEPLOY" to confirm production deployment'
+        required: true
+        default: ''
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Ensure running from master branch
+      run: |
+        if [ "${{ github.ref }}" != "refs/heads/master" ]; then
+          echo "Error:  Production deployment can only be triggered from master branch"
+          echo "Current branch: ${{ github.ref }}"
+          exit 1
+        fi
+        echo "Success:  Running from master branch"
+
+  validate-input:
+    runs-on: ubuntu-latest
+    needs: [validate-branch]
+    steps:
+    - name: Validate deployment confirmation
+      run: |
+        if [ "${{ github.event.inputs.confirm_production }}" != "DEPLOY" ]; then
+          echo "Error:  Production deployment not confirmed. Please type 'DEPLOY' to proceed."
+          exit 1
+        fi
+        echo "Success:  Production deployment confirmed"
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [validate-branch, validate-input]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+    
+    - name: Install dependencies
+      run: |
+        cd cloud-server
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Create credentials file
+      run: |
+        cd cloud-server
+        echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > credentials.json
+      
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        project_id: ${{ secrets.PROJECT_ID }}
+        export_default_credentials: true
+    
+    - name: Configure environment variables
+      run: |
+        cd cloud-server
+        cat > .env << EOF
+        PROJECT_ID=${{ secrets.PROJECT_ID }}
+        REGION=${{ secrets.REGION }}
+        MODEL_NAME=${{ secrets.MODEL_NAME }}
+        GOOGLE_APPLICATION_CREDENTIALS=./credentials.json
+        EOF
+    
+    - name: Backup current production version
+      id: backup
+      run: |
+        cd cloud-server
+        # Get current serving version
+        CURRENT_VERSION=$(gcloud app versions list --service=default --filter="TRAFFIC_SPLIT.allocations:1.0" --format="value(VERSION.ID)")
+        echo "current_version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
+        echo "📦 Current production version: ${CURRENT_VERSION}"
+    
+    - name: Deploy to production (without promotion)
+      id: deploy
+      run: |
+        cd cloud-server
+        # Deploy new version without promoting
+        NEW_VERSION="prod-$(date +%Y%m%d-%H%M%S)"
+        echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+        
+        gcloud app deploy app.yaml \
+          --version=${NEW_VERSION} \
+          --no-promote \
+          --quiet
+        
+        echo "🚀 Deployed new version: ${NEW_VERSION}"
+    
+    - name: Health check new version
+      run: |
+        NEW_VERSION="${{ steps.deploy.outputs.new_version }}"
+        NEW_URL="https://${NEW_VERSION}-dot-${{ secrets.PROJECT_ID }}.appspot.com"
+        echo "Testing new version at: $NEW_URL"
+        
+        # Wait for deployment to be ready
+        sleep 60
+        
+        # Health check with retries
+        for i in {1..5}; do
+          echo "Health check attempt $i/5..."
+          if curl -f "$NEW_URL/health"; then
+            echo "Success:  Health check passed"
+            break
+          elif [ $i -eq 5 ]; then
+            echo "Error:  Health check failed after 5 attempts"
+            exit 1
+          else
+            echo "Retrying in 30 seconds..."
+            sleep 30
+          fi
+        done
+    
+    - name: Smoke test new version
+      run: |
+        NEW_VERSION="${{ steps.deploy.outputs.new_version }}"
+        NEW_URL="https://${NEW_VERSION}-dot-${{ secrets.GCP_PROJECT_ID_PRODUCTION }}.appspot.com"
+        
+        echo "Running smoke tests on: $NEW_URL"
+        
+        # Test conversion API
+        echo "Testing conversion API..."
+        curl -X POST "$NEW_URL/api/convert" \
+          -H "Content-Type: application/json" \
+          -d '{"text":"test"}' \
+          --fail --show-error || {
+          echo "Error:  Conversion API test failed"
+          exit 1
+        }
+        
+        # Test translation API
+        echo "Testing translation API..."
+        curl -X POST "$NEW_URL/api/translate" \
+          -H "Content-Type: application/json" \
+          -d '{"text":"test"}' \
+          --fail --show-error || {
+          echo "Error:  Translation API test failed"
+          exit 1
+        }
+        
+        echo "Success:  All smoke tests passed"
+    
+    - name: Promote new version to production
+      run: |
+        NEW_VERSION="${{ steps.deploy.outputs.new_version }}"
+        echo " Promoting version ${NEW_VERSION} to production..."
+        
+        gcloud app versions migrate ${NEW_VERSION} --quiet
+        echo "Success:  Version ${NEW_VERSION} is now serving 100% of traffic"
+    
+    - name: Final production health check
+      run: |
+        PROD_URL="https://${{ secrets.PROJECT_ID }}.appspot.com"
+        echo "Final health check on production URL: $PROD_URL"
+        
+        sleep 30
+        curl -f "$PROD_URL/health" || {
+          echo "Error:  Production health check failed after promotion"
+          # Rollback
+          echo "🔄 Rolling back to previous version..."
+          gcloud app versions migrate ${{ steps.backup.outputs.current_version }} --quiet
+          exit 1
+        }
+        
+        echo "🎉 Production deployment successful!"
+    
+    - name: Cleanup old versions
+      run: |
+        cd cloud-server
+        # Keep only the 5 most recent production versions
+        gcloud app versions list --service=default --filter="VERSION.ID:prod-*" --sort-by="~VERSION.createTime" --format="value(VERSION.ID)" | tail -n +6 | xargs -r gcloud app versions delete --quiet
+    
+    - name: Create deployment summary
+      run: |
+        echo "## Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Previous Version**: ${{ steps.backup.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **New Version**: ${{ steps.deploy.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: Success:  Successfully deployed and promoted" >> $GITHUB_STEP_SUMMARY
+        echo "- **Health Check**: Success:  Passed" >> $GITHUB_STEP_SUMMARY
+        echo "- **Smoke Tests**: Success:  Passed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Production is now serving the new version!" >> $GITHUB_STEP_SUMMARY
