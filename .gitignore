@@ -40,4 +40,4 @@ build/
 *.egg-info/
 
 # Test files
-test_load.py
+test_load.pycloud-server/*credentials*.json
