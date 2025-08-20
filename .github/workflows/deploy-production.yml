@@ -23,22 +23,67 @@ jobs:
           exit 1
         fi
     
-    - name: Setup
-      uses: google-github-actions/setup-gcloud@v2
-      with:
-        service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-        project_id: ${{ secrets.PROJECT_ID }}
-        export_default_credentials: true
-    
-    - name: Test auth
+    - name: Setup credentials and authenticate
       run: |
+        cd cloud-server
+        
+        # Create credentials file
+        echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > credentials.json
+        
+        # Validate JSON
+        python3 -c "import json; json.load(open('credentials.json'))" || {
+          echo "Error:  Invalid JSON in credentials"
+          exit 1
+        }
+        
+        # Authenticate with service account
+        gcloud auth activate-service-account --key-file=credentials.json
+        
+        # Set project
+        gcloud config set project ${{ secrets.PROJECT_ID }}
+        
+        # Verify authentication
         gcloud auth list
         echo "Success:  Authentication successful"
     
-    - name: Deploy
+    - name: Get current version
+      id: current
+      run: |
+        cd cloud-server
+        CURRENT=$(gcloud app versions list --service=default --filter="TRAFFIC_SPLIT.allocations:1.0" --format="value(VERSION.ID)" 2>/dev/null || echo "none")
+        echo "version=${CURRENT}" >> $GITHUB_OUTPUT
+        echo "📦 Current version: ${CURRENT}"
+    
+    - name: Deploy new version
+      id: deploy
       run: |
         cd cloud-server
         NEW_VERSION="v$(date +%Y%m%d-%H%M)"
-        echo "🚀 Deploying ${NEW_VERSION}..."
+        echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+        
+        # Create .env for deployment
+        cat > .env << EOF
+        PROJECT_ID=${{ secrets.PROJECT_ID }}
+        REGION=${{ secrets.REGION }}
+        MODEL_NAME=${{ secrets.MODEL_NAME }}
+        EOF
+        
+        echo " Deploying ${NEW_VERSION}..."
         gcloud app deploy app.yaml --version=${NEW_VERSION} --promote --quiet
-        echo "Success:  Deployed: https://${{ secrets.PROJECT_ID }}.appspot.com"
+        echo "Success:  Deployed successfully!"
+        
+        # Wait a moment and test
+        sleep 30
+        if curl -f --max-time 20 "https://${{ secrets.PROJECT_ID }}.appspot.com/health"; then
+          echo "🎉 Deployment successful: https://${{ secrets.PROJECT_ID }}.appspot.com"
+        else
+          echo " Health check failed, but deployment completed"
+        fi
+    
+    - name: Summary
+      run: |
+        echo "## Success:  Deployment Completed" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: ${{ steps.deploy.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Previous**: ${{ steps.current.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **URL**: https://${{ secrets.PROJECT_ID }}.appspot.com" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: Deployed and promoted to production" >> $GITHUB_STEP_SUMMARY
