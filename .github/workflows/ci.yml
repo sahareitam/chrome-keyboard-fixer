@@ -49,10 +49,11 @@ jobs:
     - name: Test with pytest (if tests exist)
       run: |
         cd cloud-server
-        if [ -f "test_*.py" ] || [ -d "tests" ]; then
+        if [ -f "test_*.py" ] || [ -d "tests/" ]; then
           pytest -v
         else
-          echo "No tests found - skipping pytest"
+          echo " No tests found - skipping pytest (this is OK for now)"
+          exit 0  
         fi
 
   test-javascript:
@@ -123,7 +124,7 @@ jobs:
         zip -r ../chrome-extension-build.zip . -x "*.git*" "*.DS_Store*"
 
     - name: Upload extension artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: chrome-extension
         path: chrome-extension-build.zip
