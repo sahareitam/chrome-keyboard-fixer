@@ -1,7 +1,7 @@
 name: Deploy to Production
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  workflow_dispatch:
     inputs:
       confirm_production:
         description: 'Type "DEPLOY" to confirm production deployment'
@@ -58,13 +58,31 @@ jobs:
       run: |
         cd cloud-server
         echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > credentials.json
+        
+        # Validate JSON format
+        python -c "import json; json.load(open('credentials.json'))" || {
+          echo "Error:  Invalid JSON in GCP_SERVICE_ACCOUNT_KEY"
+          exit 1
+        }
+        echo "Success:  Credentials file created and validated"
       
-    - name: Set up Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
+    - name: Set up Google Cloud SDK (Fixed)
+      uses: google-github-actions/setup-gcloud@v2
       with:
         service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         project_id: ${{ secrets.PROJECT_ID }}
         export_default_credentials: true
+    
+    - name: Verify authentication
+      run: |
+        echo "Testing authentication..."
+        gcloud auth list
+        gcloud config list project
+        gcloud projects describe ${{ secrets.PROJECT_ID }} || {
+          echo "Error:  Cannot access project ${{ secrets.PROJECT_ID }}"
+          exit 1
+        }
+        echo "Success:  Authentication successful"
     
     - name: Configure environment variables
       run: |
@@ -75,13 +93,14 @@ jobs:
         MODEL_NAME=${{ secrets.MODEL_NAME }}
         GOOGLE_APPLICATION_CREDENTIALS=./credentials.json
         EOF
+        echo "Success:  Environment configured"
     
     - name: Backup current production version
       id: backup
       run: |
         cd cloud-server
-        # Get current serving version
-        CURRENT_VERSION=$(gcloud app versions list --service=default --filter="TRAFFIC_SPLIT.allocations:1.0" --format="value(VERSION.ID)")
+        echo "Getting current serving version..."
+        CURRENT_VERSION=$(gcloud app versions list --service=default --filter="TRAFFIC_SPLIT.allocations:1.0" --format="value(VERSION.ID)" || echo "none")
         echo "current_version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
         echo "📦 Current production version: ${CURRENT_VERSION}"
     
@@ -89,16 +108,16 @@ jobs:
       id: deploy
       run: |
         cd cloud-server
-        # Deploy new version without promoting
         NEW_VERSION="prod-$(date +%Y%m%d-%H%M%S)"
         echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
         
+        echo "🚀 Deploying new version: ${NEW_VERSION}"
         gcloud app deploy app.yaml \
           --version=${NEW_VERSION} \
           --no-promote \
           --quiet
         
-        echo "🚀 Deployed new version: ${NEW_VERSION}"
+        echo "Success:  Deployed new version: ${NEW_VERSION}"
     
     - name: Health check new version
       run: |
@@ -107,16 +126,19 @@ jobs:
         echo "Testing new version at: $NEW_URL"
         
         # Wait for deployment to be ready
+        echo "Waiting 60 seconds for deployment..."
         sleep 60
         
         # Health check with retries
         for i in {1..5}; do
           echo "Health check attempt $i/5..."
-          if curl -f "$NEW_URL/health"; then
+          if curl -f --max-time 30 "$NEW_URL/health"; then
             echo "Success:  Health check passed"
             break
           elif [ $i -eq 5 ]; then
             echo "Error:  Health check failed after 5 attempts"
+            echo "Rolling back..."
+            gcloud app versions delete ${NEW_VERSION} --quiet || true
             exit 1
           else
             echo "Retrying in 30 seconds..."
@@ -136,8 +158,10 @@ jobs:
         curl -X POST "$NEW_URL/api/convert" \
           -H "Content-Type: application/json" \
           -d '{"text":"test"}' \
-          --fail --show-error || {
+          --fail --show-error --max-time 30 || {
           echo "Error:  Conversion API test failed"
+          echo "Rolling back..."
+          gcloud app versions delete ${{ steps.deploy.outputs.new_version }} --quiet || true
           exit 1
         }
         
@@ -146,8 +170,10 @@ jobs:
         curl -X POST "$NEW_URL/api/translate" \
           -H "Content-Type: application/json" \
           -d '{"text":"test"}' \
-          --fail --show-error || {
+          --fail --show-error --max-time 30 || {
           echo "Error:  Translation API test failed"
+          echo "Rolling back..."
+          gcloud app versions delete ${{ steps.deploy.outputs.new_version }} --quiet || true
           exit 1
         }
         
@@ -156,7 +182,7 @@ jobs:
     - name: Promote new version to production
       run: |
         NEW_VERSION="${{ steps.deploy.outputs.new_version }}"
-        echo " Promoting version ${NEW_VERSION} to production..."
+        echo "🔄 Promoting version ${NEW_VERSION} to production..."
         
         gcloud app versions migrate ${NEW_VERSION} --quiet
         echo "Success:  Version ${NEW_VERSION} is now serving 100% of traffic"
@@ -167,25 +193,29 @@ jobs:
         echo "Final health check on production URL: $PROD_URL"
         
         sleep 30
-        curl -f "$PROD_URL/health" || {
+        if curl -f --max-time 30 "$PROD_URL/health"; then
+          echo "🎉 Production deployment successful!"
+        else
           echo "Error:  Production health check failed after promotion"
-          # Rollback
           echo "🔄 Rolling back to previous version..."
-          gcloud app versions migrate ${{ steps.backup.outputs.current_version }} --quiet
+          if [ "${{ steps.backup.outputs.current_version }}" != "none" ]; then
+            gcloud app versions migrate ${{ steps.backup.outputs.current_version }} --quiet
+            echo "Rolled back to: ${{ steps.backup.outputs.current_version }}"
+          fi
           exit 1
-        }
-        
-        echo "🎉 Production deployment successful!"
+        fi
     
     - name: Cleanup old versions
       run: |
         cd cloud-server
+        echo "Cleaning up old versions..."
         # Keep only the 5 most recent production versions
-        gcloud app versions list --service=default --filter="VERSION.ID:prod-*" --sort-by="~VERSION.createTime" --format="value(VERSION.ID)" | tail -n +6 | xargs -r gcloud app versions delete --quiet
+        gcloud app versions list --service=default --filter="VERSION.ID:prod-*" --sort-by="~VERSION.createTime" --format="value(VERSION.ID)" | tail -n +6 | xargs -r gcloud app versions delete --quiet || true
+        echo "Success:  Cleanup completed"
     
     - name: Create deployment summary
       run: |
-        echo "## Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## 🚀 Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- **Previous Version**: ${{ steps.backup.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
         echo "- **New Version**: ${{ steps.deploy.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
